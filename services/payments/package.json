@@ -1,0 +1,14 @@
+{
+  "name": "mercadoexpress-payments",
+  "version": "1.0.0",
+  "description": "MercadoExpress Payments Microservice — Payment processing + invoicing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "pg": "^8.13.0",
+    "cors": "^2.8.5"
+  }
+}

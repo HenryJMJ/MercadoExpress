@@ -1,0 +1,329 @@
+version: "3.9"
+
+services:
+  # ======================================
+  # INFRASTRUCTURE
+  # ======================================
+
+  redis:
+    image: redis:7-alpine
+    container_name: mercado-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mercado-net
+
+  # ======================================
+  # DATABASES (6 PostgreSQL independientes)
+  # ======================================
+
+  auth-db:
+    image: postgres:16-alpine
+    container_name: mercado-auth-db
+    environment:
+      POSTGRES_USER: ${AUTH_DB_USER}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD}
+      POSTGRES_DB: ${AUTH_DB_NAME}
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER} -d ${AUTH_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mercado-net
+
+  catalog-db:
+    image: postgres:16-alpine
+    container_name: mercado-catalog-db
+    environment:
+      POSTGRES_USER: ${CATALOG_DB_USER}
+      POSTGRES_PASSWORD: ${CATALOG_DB_PASSWORD}
+      POSTGRES_DB: ${CATALOG_DB_NAME}
+    ports:
+      - "5434:5432"
+    volumes:
+      - catalog_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CATALOG_DB_USER} -d ${CATALOG_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mercado-net
+
+  orders-db:
+    image: postgres:16-alpine
+    container_name: mercado-orders-db
+    environment:
+      POSTGRES_USER: ${ORDERS_DB_USER}
+      POSTGRES_PASSWORD: ${ORDERS_DB_PASSWORD}
+      POSTGRES_DB: ${ORDERS_DB_NAME}
+    ports:
+      - "5435:5432"
+    volumes:
+      - orders_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ORDERS_DB_USER} -d ${ORDERS_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mercado-net
+
+  payments-db:
+    image: postgres:16-alpine
+    container_name: mercado-payments-db
+    environment:
+      POSTGRES_USER: ${PAYMENTS_DB_USER}
+      POSTGRES_PASSWORD: ${PAYMENTS_DB_PASSWORD}
+      POSTGRES_DB: ${PAYMENTS_DB_NAME}
+    ports:
+      - "5436:5432"
+    volumes:
+      - payments_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PAYMENTS_DB_USER} -d ${PAYMENTS_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mercado-net
+
+  tracking-db:
+    image: postgres:16-alpine
+    container_name: mercado-tracking-db
+    environment:
+      POSTGRES_USER: ${TRACKING_DB_USER}
+      POSTGRES_PASSWORD: ${TRACKING_DB_PASSWORD}
+      POSTGRES_DB: ${TRACKING_DB_NAME}
+    ports:
+      - "5437:5432"
+    volumes:
+      - tracking_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TRACKING_DB_USER} -d ${TRACKING_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mercado-net
+
+  analytics-db:
+    image: postgres:16-alpine
+    container_name: mercado-analytics-db
+    environment:
+      POSTGRES_USER: ${ANALYTICS_DB_USER}
+      POSTGRES_PASSWORD: ${ANALYTICS_DB_PASSWORD}
+      POSTGRES_DB: ${ANALYTICS_DB_NAME}
+    ports:
+      - "5438:5432"
+    volumes:
+      - analytics_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ANALYTICS_DB_USER} -d ${ANALYTICS_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mercado-net
+
+  # ======================================
+  # MICROSERVICES (6 Node.js)
+  # ======================================
+
+  auth:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    container_name: mercado-auth
+    ports:
+      - "4001:4001"
+    environment:
+      PORT: ${AUTH_PORT}
+      DB_HOST: ${AUTH_DB_HOST}
+      DB_PORT: ${AUTH_DB_PORT}
+      DB_USER: ${AUTH_DB_USER}
+      DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      DB_NAME: ${AUTH_DB_NAME}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mercado-net
+
+  catalog:
+    build:
+      context: ./services/catalog
+      dockerfile: Dockerfile
+    container_name: mercado-catalog
+    ports:
+      - "4002:4002"
+    environment:
+      PORT: ${CATALOG_PORT}
+      DB_HOST: ${CATALOG_DB_HOST}
+      DB_PORT: ${CATALOG_DB_PORT}
+      DB_USER: ${CATALOG_DB_USER}
+      DB_PASSWORD: ${CATALOG_DB_PASSWORD}
+      DB_NAME: ${CATALOG_DB_NAME}
+      REDIS_URL: ${REDIS_URL}
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mercado-net
+
+  orders:
+    build:
+      context: ./services/orders
+      dockerfile: Dockerfile
+    container_name: mercado-orders
+    ports:
+      - "4003:4003"
+    environment:
+      PORT: ${ORDERS_PORT}
+      DB_HOST: ${ORDERS_DB_HOST}
+      DB_PORT: ${ORDERS_DB_PORT}
+      DB_USER: ${ORDERS_DB_USER}
+      DB_PASSWORD: ${ORDERS_DB_PASSWORD}
+      DB_NAME: ${ORDERS_DB_NAME}
+      CATALOG_SERVICE_URL: http://catalog:4002
+    depends_on:
+      orders-db:
+        condition: service_healthy
+    networks:
+      - mercado-net
+
+  payments:
+    build:
+      context: ./services/payments
+      dockerfile: Dockerfile
+    container_name: mercado-payments
+    ports:
+      - "4004:4004"
+    environment:
+      PORT: ${PAYMENTS_PORT}
+      DB_HOST: ${PAYMENTS_DB_HOST}
+      DB_PORT: ${PAYMENTS_DB_PORT}
+      DB_USER: ${PAYMENTS_DB_USER}
+      DB_PASSWORD: ${PAYMENTS_DB_PASSWORD}
+      DB_NAME: ${PAYMENTS_DB_NAME}
+      ORDERS_SERVICE_URL: http://orders:4003
+    depends_on:
+      payments-db:
+        condition: service_healthy
+    networks:
+      - mercado-net
+
+  tracking:
+    build:
+      context: ./services/tracking
+      dockerfile: Dockerfile
+    container_name: mercado-tracking
+    ports:
+      - "4005:4005"
+    environment:
+      PORT: ${TRACKING_PORT}
+      DB_HOST: ${TRACKING_DB_HOST}
+      DB_PORT: ${TRACKING_DB_PORT}
+      DB_USER: ${TRACKING_DB_USER}
+      DB_PASSWORD: ${TRACKING_DB_PASSWORD}
+      DB_NAME: ${TRACKING_DB_NAME}
+    depends_on:
+      tracking-db:
+        condition: service_healthy
+    networks:
+      - mercado-net
+
+  analytics:
+    build:
+      context: ./services/analytics
+      dockerfile: Dockerfile
+    container_name: mercado-analytics
+    ports:
+      - "4006:4006"
+    environment:
+      PORT: ${ANALYTICS_PORT}
+      DB_HOST: ${ANALYTICS_DB_HOST}
+      DB_PORT: ${ANALYTICS_DB_PORT}
+      DB_USER: ${ANALYTICS_DB_USER}
+      DB_PASSWORD: ${ANALYTICS_DB_PASSWORD}
+      DB_NAME: ${ANALYTICS_DB_NAME}
+      REDIS_URL: ${REDIS_URL}
+    depends_on:
+      analytics-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mercado-net
+
+  # ======================================
+  # API GATEWAY
+  # ======================================
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: mercado-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: ${GATEWAY_PORT}
+      AUTH_SERVICE_URL: http://auth:4001
+      CATALOG_SERVICE_URL: http://catalog:4002
+      ORDERS_SERVICE_URL: http://orders:4003
+      PAYMENTS_SERVICE_URL: http://payments:4004
+      TRACKING_SERVICE_URL: http://tracking:4005
+      ANALYTICS_SERVICE_URL: http://analytics:4006
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_URL: ${REDIS_URL}
+    depends_on:
+      - auth
+      - catalog
+      - orders
+      - payments
+      - tracking
+      - analytics
+    networks:
+      - mercado-net
+
+# ======================================
+# VOLUMES (persistencia de datos)
+# ======================================
+
+volumes:
+  redis_data:
+  auth_db_data:
+  catalog_db_data:
+  orders_db_data:
+  payments_db_data:
+  tracking_db_data:
+  analytics_db_data:
+
+# ======================================
+# NETWORK
+# ======================================
+
+networks:
+  mercado-net:
+    driver: bridge
