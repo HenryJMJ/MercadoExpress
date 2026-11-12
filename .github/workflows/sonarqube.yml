@@ -21,12 +21,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validar token (borrar luego)
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          echo "Longitud del token: ${#SONAR_TOKEN}"
+          curl -s -u "$SONAR_TOKEN:" https://sonarcloud.io/api/authentication/validate
+          echo
+
       - name: Analyze with SonarQube
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: https://sonarcloud.io
         with:
           args: >
             -Dsonar.projectKey=HenryJMJ_MercadoExpress
             -Dsonar.organization=henryjmj
+            -Dsonar.scanner.skipJreProvisioning=true
