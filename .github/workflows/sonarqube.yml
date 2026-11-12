@@ -30,7 +30,7 @@ jobs:
           echo
 
       - name: Analyze with SonarQube
-        uses: SonarSource/sonarqube-scan-action@PEGA_AQUI_EL_SHA_DE_40_CARACTERES
+        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
